@@ -159,6 +159,38 @@ func TestSelfTest(t *testing.T) {
 	}
 }
 
+func TestHashBlocks(t *testing.T) {
+	var h0, h1 [8]uint32
+	var c0, c1 [2]uint32
+	var data0, data1 [512]byte
+
+	h0, h1 = iv, iv
+	for i := range data0 {
+		data0[i] = byte(i)
+		data1[i] = byte(i)
+	}
+
+	hashBlocks(&h0, &c0, 0, data0[:])
+	hashBlocksGeneric(&h1, &c1, 0, data1[:])
+
+	if h0 != h1 {
+		t.Errorf("h0 != h1\nh0: %v\nh1: %v", h0, h1)
+	}
+	if c0 != c1 {
+		t.Errorf("c0 != c1\nc0: %v\nc1: %v", c0, c1)
+	}
+
+	hashBlocks(&h0, &c0, 0xFFFFFFFF, data0[:])
+	hashBlocksGeneric(&h1, &c1, 0xFFFFFFFF, data1[:])
+
+	if h0 != h1 {
+		t.Errorf("h0 != h1\nh0: %v\nh1: %v", h0, h1)
+	}
+	if c0 != c1 {
+		t.Errorf("c0 != c1\nc0: %v\nc1: %v", c0, c1)
+	}
+}
+
 // Benchmarks
 
 func benchmarkSum(b *testing.B, size int) {
