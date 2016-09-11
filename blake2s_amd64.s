@@ -26,6 +26,10 @@ DATA rol8<>+0x00(SB)/8, $0x0407060500030201
 DATA rol8<>+0x08(SB)/8, $0x0C0F0E0D080B0A09
 GLOBL rol8<>(SB), (NOPTR+RODATA), $16
 
+DATA counter<>+0x00(SB)/8, $0x40
+DATA counter<>+0x08(SB)/8, $0x0
+GLOBL counter<>(SB), (NOPTR+RODATA), $16
+
 #define ROTL_SSE2(n, t, v) \
  	MOVO v, t; \
 	PSLLL $n, t; \
@@ -69,7 +73,7 @@ GLOBL rol8<>(SB), (NOPTR+RODATA), $16
     ROTL_SSE2(25, t, v1); \    
     PSHUFL $0x39, v3, v3; \
     PSHUFL $0x4E, v2, v2; \
-    PSHUFL $0x93, v1, v1; \
+    PSHUFL $0x93, v1, v1
 
 #define ROUND_SSSE3(v0 , v1, v2, v3, m0, m1, m2, m3, t, c16, c8) \
     PADDD m0, v0; \
@@ -82,7 +86,7 @@ GLOBL rol8<>(SB), (NOPTR+RODATA), $16
     PADDD m1, v0; \
     PADDD v1, v0; \
     PXOR v0, v3; \
-    ROTL_SSSE3(c8, v3); \ // ROTL_SSE2(24, t, v3); \
+    ROTL_SSSE3(c8, v3); \
     PADDD v3, v2; \
     PXOR v2, v1; \
     ROTL_SSE2(25, t, v1); \
@@ -99,13 +103,13 @@ GLOBL rol8<>(SB), (NOPTR+RODATA), $16
     PADDD m3, v0; \
     PADDD v1, v0; \
     PXOR v0, v3; \
-    ROTL_SSSE3(c8, v3); \ // ROTL_SSE2(24, t, v3); \
+    ROTL_SSSE3(c8, v3); \
     PADDD v3, v2; \
     PXOR v2, v1; \
     ROTL_SSE2(25, t, v1); \    
     PSHUFL $0x39, v3, v3; \
     PSHUFL $0x4E, v2, v2; \
-    PSHUFL $0x93, v1, v1; \
+    PSHUFL $0x93, v1, v1
 
 #define PRECOMPUTE(dst, off, src, R8, R9, R10, R11, R12, R13, R14, R15) \
     MOVL 0*4(src), R8; \
@@ -307,15 +311,16 @@ TEXT ·hashBlocksSSE2(SB),4,$0-48
     MOVOU 16(AX), X1
     MOVOU iv0<>(SB), X2
     MOVOU iv1<>(SB), X3
+	MOVOU counter<>(SB), X12
+	MOVO 0(SP), X13
 loop:
-    ADDQ $64, 0(SP)
     MOVO X0, X4
     MOVO X1, X5
     MOVO X2, X6
     MOVO X3, X7
 
-    MOVOU 0(SP), X8
-    PXOR X8, X7
+    PADDQ X12, X13
+	PXOR X13, X7
 
     PRECOMPUTE(SP, 16, CX, R8, R9, R10, R11, R12, R13, R14, R15)
     ROUND_SSE2(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X15)
@@ -338,6 +343,7 @@ loop:
     SUBQ $64, DX 
     JNE loop
 
+	MOVO X13, 0(SP)
     MOVQ 0(SP), R9
     MOVQ R9, 0(BX)
 
@@ -372,15 +378,16 @@ TEXT ·hashBlocksSSSE3(SB),4,$0-48
 
 	MOVOU rol16<>(SB), X10
 	MOVOU rol8<>(SB), X11
+	MOVOU counter<>(SB), X12
+	MOVO 0(SP), X13
 loop:
-    ADDQ $64, 0(SP)
     MOVO X0, X4
     MOVO X1, X5
     MOVO X2, X6
     MOVO X3, X7
 
-    MOVOU 0(SP), X8
-    PXOR X8, X7
+    PADDQ X12, X13
+	PXOR X13, X7
 
     PRECOMPUTE(SP, 16, CX, R8, R9, R10, R11, R12, R13, R14, R15)
     ROUND_SSSE3(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X15, X10, X11)
@@ -403,6 +410,7 @@ loop:
     SUBQ $64, DX 
     JNE loop
 
+	MOVO X13, 0(SP)
     MOVQ 0(SP), R9
     MOVQ R9, 0(BX)
 
