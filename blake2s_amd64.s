@@ -432,10 +432,10 @@ loop:
 
 // func supportSSSE3() bool
 TEXT ·supportSSSE3(SB), 4, $0-1
-	XORQ CX, CX
+	XORL CX, CX
 	MOVL $1, AX
 	CPUID
-	MOVQ CX, BX
+	MOVL CX, BX
 	ANDL $0x1, BX      // BX != 0 if support SSE3
 	CMPL BX, $0
 	JE   FALSE
@@ -449,4 +449,15 @@ FALSE:
 	MOVB $0, ret+0(FP)
 
 DONE:
+	RET
+
+// func supportSSE2() bool
+TEXT ·supportSSE2(SB), 4, $0-1
+	XORL DX, DX
+	MOVL $1, AX
+	CPUID
+	XORL AX, AX
+	ANDL $(1<<26), DX  // DX != 0 if support SSE2
+	SHRL $26, DX
+	MOVB DX, ret+0(FP)
 	RET

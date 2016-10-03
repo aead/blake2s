@@ -2,11 +2,15 @@
 // Use of this source code is governed by a license that can be
 // found in the LICENSE file.
 
-// +build amd64, !gccgo, !appengine
+// +build amd64,386, !gccgo, !appengine
 
 package blake2s
 
 var useSSSE3 = supportSSSE3()
+var useSSE2 = supportSSE2()
+
+//go:noescape
+func supportSSE2() bool
 
 //go:noescape
 func supportSSSE3() bool
@@ -20,7 +24,9 @@ func hashBlocksSSSE3(h *[8]uint32, c *[2]uint32, flag uint32, blocks []byte)
 func hashBlocks(h *[8]uint32, c *[2]uint32, flag uint32, blocks []byte) {
 	if useSSSE3 {
 		hashBlocksSSSE3(h, c, flag, blocks)
-	} else {
+	} else if useSSE2 {
 		hashBlocksSSE2(h, c, flag, blocks)
+	} else {
+		hashBlocksGeneric(h, c, flag, blocks)
 	}
 }
