@@ -40,35 +40,35 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 	PSHUFB c, v
 
 #define ROUND_SSE2(v0, v1, v2, v3, m0, m1, m2, m3, t) \
-	PADDD  m0, v0;        \
-	PADDD  v1, v0;        \
+	PADDL  m0, v0;        \
+	PADDL  v1, v0;        \
 	PXOR   v0, v3;        \
 	ROTL_SSE2(16, t, v3); \
-	PADDD  v3, v2;        \
+	PADDL  v3, v2;        \
 	PXOR   v2, v1;        \
 	ROTL_SSE2(20, t, v1); \
-	PADDD  m1, v0;        \
-	PADDD  v1, v0;        \
+	PADDL  m1, v0;        \
+	PADDL  v1, v0;        \
 	PXOR   v0, v3;        \
 	ROTL_SSE2(24, t, v3); \
-	PADDD  v3, v2;        \
+	PADDL  v3, v2;        \
 	PXOR   v2, v1;        \
 	ROTL_SSE2(25, t, v1); \
 	PSHUFL $0x39, v1, v1; \
 	PSHUFL $0x4E, v2, v2; \
 	PSHUFL $0x93, v3, v3; \
-	PADDD  m2, v0;        \
-	PADDD  v1, v0;        \
+	PADDL  m2, v0;        \
+	PADDL  v1, v0;        \
 	PXOR   v0, v3;        \
 	ROTL_SSE2(16, t, v3); \
-	PADDD  v3, v2;        \
+	PADDL  v3, v2;        \
 	PXOR   v2, v1;        \
 	ROTL_SSE2(20, t, v1); \
-	PADDD  m3, v0;        \
-	PADDD  v1, v0;        \
+	PADDL  m3, v0;        \
+	PADDL  v1, v0;        \
 	PXOR   v0, v3;        \
 	ROTL_SSE2(24, t, v3); \
-	PADDD  v3, v2;        \
+	PADDL  v3, v2;        \
 	PXOR   v2, v1;        \
 	ROTL_SSE2(25, t, v1); \
 	PSHUFL $0x39, v3, v3; \
@@ -76,35 +76,35 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 	PSHUFL $0x93, v1, v1
 
 #define ROUND_SSSE3(v0, v1, v2, v3, m0, m1, m2, m3, t, c16, c8) \
-	PADDD  m0, v0;        \
-	PADDD  v1, v0;        \
+	PADDL  m0, v0;        \
+	PADDL  v1, v0;        \
 	PXOR   v0, v3;        \
 	ROTL_SSSE3(c16, v3);  \
-	PADDD  v3, v2;        \
+	PADDL  v3, v2;        \
 	PXOR   v2, v1;        \
 	ROTL_SSE2(20, t, v1); \
-	PADDD  m1, v0;        \
-	PADDD  v1, v0;        \
+	PADDL  m1, v0;        \
+	PADDL  v1, v0;        \
 	PXOR   v0, v3;        \
 	ROTL_SSSE3(c8, v3);   \
-	PADDD  v3, v2;        \
+	PADDL  v3, v2;        \
 	PXOR   v2, v1;        \
 	ROTL_SSE2(25, t, v1); \
 	PSHUFL $0x39, v1, v1; \
 	PSHUFL $0x4E, v2, v2; \
 	PSHUFL $0x93, v3, v3; \
-	PADDD  m2, v0;        \
-	PADDD  v1, v0;        \
+	PADDL  m2, v0;        \
+	PADDL  v1, v0;        \
 	PXOR   v0, v3;        \
 	ROTL_SSSE3(c16, v3);  \
-	PADDD  v3, v2;        \
+	PADDL  v3, v2;        \
 	PXOR   v2, v1;        \
 	ROTL_SSE2(20, t, v1); \
-	PADDD  m3, v0;        \
-	PADDD  v1, v0;        \
+	PADDL  m3, v0;        \
+	PADDL  v1, v0;        \
 	PXOR   v0, v3;        \
 	ROTL_SSSE3(c8, v3);   \
-	PADDD  v3, v2;        \
+	PADDL  v3, v2;        \
 	PXOR   v2, v1;        \
 	ROTL_SSE2(25, t, v1); \
 	PSHUFL $0x39, v3, v3; \
