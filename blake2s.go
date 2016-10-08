@@ -6,7 +6,10 @@
 // defined in RFC 7693.
 package blake2s
 
-import "hash"
+import (
+	"encoding/binary"
+	"hash"
+)
 
 const (
 	// BlockSize is the blocksize of BLAKE2s in bytes.
@@ -119,10 +122,7 @@ func checkSum(sum *[Size]byte, hashsize int, data []byte) {
 	hashBlocks(&h, &c, 0xFFFFFFFF, block[:])
 
 	for i, v := range h[:(hashsize+3)/4] {
-		sum[(i*4)+0] = byte(v)
-		sum[(i*4)+1] = byte(v >> 8)
-		sum[(i*4)+2] = byte(v >> 16)
-		sum[(i*4)+3] = byte(v >> 24)
+		binary.LittleEndian.PutUint32(sum[4*i:], v)
 	}
 }
 
@@ -199,10 +199,7 @@ func (d *digest) Sum(b []byte) []byte {
 
 	var sum [Size]byte
 	for i, v := range h[:(d.size+3)/4] {
-		sum[(i*4)+0] = byte(v)
-		sum[(i*4)+1] = byte(v >> 8)
-		sum[(i*4)+2] = byte(v >> 16)
-		sum[(i*4)+3] = byte(v >> 24)
+		binary.LittleEndian.PutUint32(sum[4*i:], v)
 	}
 
 	return append(b, sum[:d.size]...)
