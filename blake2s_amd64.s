@@ -301,11 +301,11 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 TEXT ·hashBlocksSSE2(SB), 4, $0-48
 	MOVQ h+0(FP), AX
 	MOVQ c+8(FP), BX
-	MOVL flag+16(FP), DI
-	MOVQ blocks_base+24(FP), CX
+	MOVL flag+16(FP), CX
+	MOVQ blocks_base+24(FP), SI
 	MOVQ blocks_len+32(FP), DX
 
-	MOVQ SP, SI
+	MOVQ SP, BP
 	ANDQ $0xFFFFFFFFFFFFFFF0, SP
 	SUBQ $(16+16+640), SP
 
@@ -313,7 +313,7 @@ TEXT ·hashBlocksSSE2(SB), 4, $0-48
 	MOVQ R9, 0(SP)
 	XORQ R9, R9
 	MOVQ R9, 8(SP)
-	MOVL DI, 8(SP)
+	MOVL CX, 8(SP)
 
 	MOVOU 0(AX), X0
 	MOVOU 16(AX), X1
@@ -331,7 +331,7 @@ loop:
 	PADDQ X12, X13
 	PXOR  X13, X7
 
-	PRECOMPUTE(SP, 16, CX, R8, R9, R10, R11, R12, R13, R14, R15)
+	PRECOMPUTE(SP, 16, SI, R8, R9, R10, R11, R12, R13, R14, R15)
 	ROUND_SSE2(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X15)
 	ROUND_SSE2(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X15)
 	ROUND_SSE2(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X15)
@@ -348,7 +348,7 @@ loop:
 	PXOR X6, X0
 	PXOR X7, X1
 
-	LEAQ 64(CX), CX
+	LEAQ 64(SI), SI
 	SUBQ $64, DX
 	JNE  loop
 
@@ -359,18 +359,18 @@ loop:
 	MOVOU X0, 0(AX)
 	MOVOU X1, 16(AX)
 
-	MOVQ SI, SP
+	MOVQ BP, SP
 	RET
 
 // func hashBlocksSSSE3(h *[8]uint32, c *[2]uint32, flag uint32, blocks []byte)
 TEXT ·hashBlocksSSSE3(SB), 4, $0-48
 	MOVQ h+0(FP), AX
 	MOVQ c+8(FP), BX
-	MOVL flag+16(FP), DI
-	MOVQ blocks_base+24(FP), CX
+	MOVL flag+16(FP), CX
+	MOVQ blocks_base+24(FP), SI
 	MOVQ blocks_len+32(FP), DX
 
-	MOVQ SP, SI
+	MOVQ SP, BP
 	ANDQ $0xFFFFFFFFFFFFFFF0, SP
 	SUBQ $(16+16+640), SP
 
@@ -378,7 +378,7 @@ TEXT ·hashBlocksSSSE3(SB), 4, $0-48
 	MOVQ R9, 0(SP)
 	XORQ R9, R9
 	MOVQ R9, 8(SP)
-	MOVL DI, 8(SP)
+	MOVL CX, 8(SP)
 
 	MOVOU 0(AX), X0
 	MOVOU 16(AX), X1
@@ -399,7 +399,7 @@ loop:
 	PADDQ X12, X13
 	PXOR  X13, X7
 
-	PRECOMPUTE(SP, 16, CX, R8, R9, R10, R11, R12, R13, R14, R15)
+	PRECOMPUTE(SP, 16, SI, R8, R9, R10, R11, R12, R13, R14, R15)
 	ROUND_SSSE3(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X15, X10, X11)
 	ROUND_SSSE3(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X15, X10, X11)
 	ROUND_SSSE3(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X15, X10, X11)
@@ -416,7 +416,7 @@ loop:
 	PXOR X6, X0
 	PXOR X7, X1
 
-	LEAQ 64(CX), CX
+	LEAQ 64(SI), SI
 	SUBQ $64, DX
 	JNE  loop
 
@@ -427,7 +427,7 @@ loop:
 	MOVOU X0, 0(AX)
 	MOVOU X1, 16(AX)
 
-	MOVQ SI, SP
+	MOVQ BP, SP
 	RET
 
 // func supportSSSE3() bool

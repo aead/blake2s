@@ -293,21 +293,21 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 TEXT ·hashBlocksSSE2(SB), 4, $0-24
 	MOVL h+0(FP), AX
 	MOVL c+4(FP), BX
-	MOVL flag+8(FP), DX
-	MOVL blocks_base+12(FP), CX
-	MOVL blocks_len+16(FP), DI
+	MOVL flag+8(FP), CX
+	MOVL blocks_base+12(FP), SI
+	MOVL blocks_len+16(FP), DX
 
-	MOVL SP, SI
+	MOVL SP, BP
 	ANDL $0xFFFFFFF0, SP
 	SUBL $(16+16+640), SP
 
-	PXOR X0, X0
-	MOVO X0, 0(SP)
-	MOVL DX, 8(SP)
-	MOVL 0(BX), DX
-	MOVL DX, 0(SP)
-	MOVL 4(BX), DX
-	MOVL DX, 4(SP)
+	MOVL CX, 8(SP)
+	MOVL 0(BX), CX
+	MOVL CX, 0(SP)
+	MOVL 4(BX), CX
+	MOVL CX, 4(SP)
+	XORL CX, CX
+	MOVL CX, 12(SP)
 
 	MOVOU 0(AX), X0
 	MOVOU 16(AX), X1
@@ -324,7 +324,7 @@ loop:
 	PXOR  X3, X7
 	MOVO  X3, 0(SP)
 
-	PRECOMPUTE(SP, 16, CX, DX)
+	PRECOMPUTE(SP, 16, SI, CX)
 	ROUND_SSE2(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X3)
 	ROUND_SSE2(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X3)
 	ROUND_SSE2(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X3)
@@ -341,40 +341,40 @@ loop:
 	PXOR X6, X0
 	PXOR X7, X1
 
-	LEAL 64(CX), CX
-	SUBL $64, DI
+	LEAL 64(SI), SI
+	SUBL $64, DX
 	JNE  loop
 
-	MOVL 0(SP), DX
-	MOVL DX, 0(BX)
-	MOVL 4(SP), DX
-	MOVL DX, 4(BX)
+	MOVL 0(SP), CX
+	MOVL CX, 0(BX)
+	MOVL 4(SP), CX
+	MOVL CX, 4(BX)
 
 	MOVOU X0, 0(AX)
 	MOVOU X1, 16(AX)
 
-	MOVL SI, SP
+	MOVL BP, SP
 	RET
 
 // func hashBlocksSSSE3(h *[8]uint32, c *[2]uint32, flag uint32, blocks []byte)
 TEXT ·hashBlocksSSSE3(SB), 4, $0-24
 	MOVL h+0(FP), AX
 	MOVL c+4(FP), BX
-	MOVL flag+8(FP), DX
-	MOVL blocks_base+12(FP), CX
-	MOVL blocks_len+16(FP), DI
+	MOVL flag+8(FP), CX
+	MOVL blocks_base+12(FP), SI
+	MOVL blocks_len+16(FP), DX
 
-	MOVL SP, SI
+	MOVL SP, BP
 	ANDL $0xFFFFFFF0, SP
 	SUBL $(16+16+640+32), SP
 
-	PXOR X0, X0
-	MOVO X0, 0(SP)
-	MOVL DX, 8(SP)
-	MOVL 0(BX), DX
-	MOVL DX, 0(SP)
-	MOVL 4(BX), DX
-	MOVL DX, 4(SP)
+	MOVL CX, 8(SP)
+	MOVL 0(BX), CX
+	MOVL CX, 0(SP)
+	MOVL 4(BX), CX
+	MOVL CX, 4(SP)
+	XORL CX, CX
+	MOVL CX, 12(SP)
 
 	MOVOU 0(AX), X0
 	MOVOU 16(AX), X1
@@ -396,7 +396,7 @@ loop:
 	MOVOU rol16<>(SB), X0
 	MOVOU rol8<>(SB), X1
 
-	PRECOMPUTE(SP, 16, CX, DX)
+	PRECOMPUTE(SP, 16, SI, CX)
 	ROUND_SSSE3(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X3, X0, X1)
 	ROUND_SSSE3(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X3, X0, X1)
 	ROUND_SSSE3(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X3, X0, X1)
@@ -415,19 +415,19 @@ loop:
 	PXOR X6, X0
 	PXOR X7, X1
 
-	LEAL 64(CX), CX
-	SUBL $64, DI
+	LEAL 64(SI), SI
+	SUBL $64, DX
 	JNE  loop
 
-	MOVL 0(SP), DX
-	MOVL DX, 0(BX)
-	MOVL 4(SP), DX
-	MOVL DX, 4(BX)
+	MOVL 0(SP), CX
+	MOVL CX, 0(BX)
+	MOVL 4(SP), CX
+	MOVL CX, 4(BX)
 
 	MOVOU X0, 0(AX)
 	MOVOU X1, 16(AX)
 
-	MOVL SI, SP
+	MOVL BP, SP
 	RET
 
 // func supportSSSE3() bool
