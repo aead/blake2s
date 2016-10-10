@@ -39,7 +39,9 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 #define ROTL_SSSE3(c, v) \
 	PSHUFB c, v
 
-#define ROUND_SSE2(v0, v1, v2, v3, m0, m1, m2, m3, t) \
+	// ignore0, ignore1 are ignored
+	// ROUND_SSE2 must have an equal arg count to ROUND_SSSE3
+#define ROUND_SSE2(v0, v1, v2, v3, m0, m1, m2, m3, t, ignore0, ignore1) \
 	PADDL  m0, v0;        \
 	PADDL  v1, v0;        \
 	PXOR   v0, v3;        \
@@ -297,137 +299,79 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 	MOVL R15, 4*4+off+512(dst);  \
 	MOVL R15, 8*4+off+576(dst)
 
+#define HASH_BLOCKS(h, c, flag, blocks_base, blocks_len, ROUND_FUNC) \
+	MOVQ  h, AX;                                                                               \
+	MOVQ  c, BX;                                                                               \
+	MOVL  flag, CX;                                                                            \
+	MOVQ  blocks_base, SI;                                                                     \
+	MOVQ  blocks_len, DX;                                                                      \
+	                                                                                           \
+	MOVQ  SP, BP;                                                                              \
+	ANDQ  $0xFFFFFFFFFFFFFFF0, SP;                                                             \
+	SUBQ  $(16+16+640), SP;                                                                    \
+	                                                                                           \
+	MOVQ  0(BX), R9;                                                                           \
+	MOVQ  R9, 0(SP);                                                                           \
+	XORQ  R9, R9;                                                                              \
+	MOVQ  R9, 8(SP);                                                                           \
+	MOVL  CX, 8(SP);                                                                           \
+	                                                                                           \
+	MOVOU 0(AX), X0;                                                                           \
+	MOVOU 16(AX), X1;                                                                          \
+	MOVOU iv0<>(SB), X2;                                                                       \
+	MOVOU iv1<>(SB), X3;                                                                       \
+	MOVOU counter<>(SB), X12;                                                                  \
+	MOVOU rol16<>(SB), X10;                                                                    \
+	MOVOU rol8<>(SB), X11;                                                                     \
+	MOVO  0(SP), X13;                                                                          \
+	                                                                                           \
+	loop:                                                                                      \
+	MOVO  X0, X4;                                                                              \
+	MOVO  X1, X5;                                                                              \
+	MOVO  X2, X6;                                                                              \
+	MOVO  X3, X7;                                                                              \
+	                                                                                           \
+	PADDQ X12, X13;                                                                            \
+	PXOR  X13, X7;                                                                             \
+	                                                                                           \
+	PRECOMPUTE(SP, 16, SI, R8, R9, R10, R11, R12, R13, R14, R15);                              \
+	ROUND_FUNC(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X15, X10, X11);                 \
+	ROUND_FUNC(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X15, X10, X11);     \
+	ROUND_FUNC(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X15, X10, X11); \
+	ROUND_FUNC(X4, X5, X6, X7, 16+192(SP), 32+192(SP), 48+192(SP), 64+192(SP), X15, X10, X11); \
+	ROUND_FUNC(X4, X5, X6, X7, 16+256(SP), 32+256(SP), 48+256(SP), 64+256(SP), X15, X10, X11); \
+	ROUND_FUNC(X4, X5, X6, X7, 16+320(SP), 32+320(SP), 48+320(SP), 64+320(SP), X15, X10, X11); \
+	ROUND_FUNC(X4, X5, X6, X7, 16+384(SP), 32+384(SP), 48+384(SP), 64+384(SP), X15, X10, X11); \
+	ROUND_FUNC(X4, X5, X6, X7, 16+448(SP), 32+448(SP), 48+448(SP), 64+448(SP), X15, X10, X11); \
+	ROUND_FUNC(X4, X5, X6, X7, 16+512(SP), 32+512(SP), 48+512(SP), 64+512(SP), X15, X10, X11); \
+	ROUND_FUNC(X4, X5, X6, X7, 16+576(SP), 32+576(SP), 48+576(SP), 64+576(SP), X15, X10, X11); \
+	                                                                                           \
+	PXOR  X4, X0;                                                                              \
+	PXOR  X5, X1;                                                                              \
+	PXOR  X6, X0;                                                                              \
+	PXOR  X7, X1;                                                                              \
+	                                                                                           \
+	LEAQ  64(SI), SI;                                                                          \
+	SUBQ  $64, DX;                                                                             \
+	JNE   loop;                                                                                \
+	                                                                                           \
+	MOVO  X13, 0(SP);                                                                          \
+	MOVQ  0(SP), R9;                                                                           \
+	MOVQ  R9, 0(BX);                                                                           \
+	                                                                                           \
+	MOVOU X0, 0(AX);                                                                           \
+	MOVOU X1, 16(AX);                                                                          \
+	                                                                                           \
+	MOVQ  BP, SP;                                                                              \
+
 // func hashBlocksSSE2(h *[8]uint32, c *[2]uint32, flag uint32, blocks []byte)
 TEXT ·hashBlocksSSE2(SB), 4, $0-48
-	MOVQ h+0(FP), AX
-	MOVQ c+8(FP), BX
-	MOVL flag+16(FP), CX
-	MOVQ blocks_base+24(FP), SI
-	MOVQ blocks_len+32(FP), DX
-
-	MOVQ SP, BP
-	ANDQ $0xFFFFFFFFFFFFFFF0, SP
-	SUBQ $(16+16+640), SP
-
-	MOVQ 0(BX), R9
-	MOVQ R9, 0(SP)
-	XORQ R9, R9
-	MOVQ R9, 8(SP)
-	MOVL CX, 8(SP)
-
-	MOVOU 0(AX), X0
-	MOVOU 16(AX), X1
-	MOVOU iv0<>(SB), X2
-	MOVOU iv1<>(SB), X3
-	MOVOU counter<>(SB), X12
-	MOVO  0(SP), X13
-
-loop:
-	MOVO X0, X4
-	MOVO X1, X5
-	MOVO X2, X6
-	MOVO X3, X7
-
-	PADDQ X12, X13
-	PXOR  X13, X7
-
-	PRECOMPUTE(SP, 16, SI, R8, R9, R10, R11, R12, R13, R14, R15)
-	ROUND_SSE2(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X15)
-	ROUND_SSE2(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X15)
-	ROUND_SSE2(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X15)
-	ROUND_SSE2(X4, X5, X6, X7, 16+192(SP), 32+192(SP), 48+192(SP), 64+192(SP), X15)
-	ROUND_SSE2(X4, X5, X6, X7, 16+256(SP), 32+256(SP), 48+256(SP), 64+256(SP), X15)
-	ROUND_SSE2(X4, X5, X6, X7, 16+320(SP), 32+320(SP), 48+320(SP), 64+320(SP), X15)
-	ROUND_SSE2(X4, X5, X6, X7, 16+384(SP), 32+384(SP), 48+384(SP), 64+384(SP), X15)
-	ROUND_SSE2(X4, X5, X6, X7, 16+448(SP), 32+448(SP), 48+448(SP), 64+448(SP), X15)
-	ROUND_SSE2(X4, X5, X6, X7, 16+512(SP), 32+512(SP), 48+512(SP), 64+512(SP), X15)
-	ROUND_SSE2(X4, X5, X6, X7, 16+576(SP), 32+576(SP), 48+576(SP), 64+576(SP), X15)
-
-	PXOR X4, X0
-	PXOR X5, X1
-	PXOR X6, X0
-	PXOR X7, X1
-
-	LEAQ 64(SI), SI
-	SUBQ $64, DX
-	JNE  loop
-
-	MOVO X13, 0(SP)
-	MOVQ 0(SP), R9
-	MOVQ R9, 0(BX)
-
-	MOVOU X0, 0(AX)
-	MOVOU X1, 16(AX)
-
-	MOVQ BP, SP
+	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), ROUND_SSE2)
 	RET
 
 // func hashBlocksSSSE3(h *[8]uint32, c *[2]uint32, flag uint32, blocks []byte)
 TEXT ·hashBlocksSSSE3(SB), 4, $0-48
-	MOVQ h+0(FP), AX
-	MOVQ c+8(FP), BX
-	MOVL flag+16(FP), CX
-	MOVQ blocks_base+24(FP), SI
-	MOVQ blocks_len+32(FP), DX
-
-	MOVQ SP, BP
-	ANDQ $0xFFFFFFFFFFFFFFF0, SP
-	SUBQ $(16+16+640), SP
-
-	MOVQ 0(BX), R9
-	MOVQ R9, 0(SP)
-	XORQ R9, R9
-	MOVQ R9, 8(SP)
-	MOVL CX, 8(SP)
-
-	MOVOU 0(AX), X0
-	MOVOU 16(AX), X1
-	MOVOU iv0<>(SB), X2
-	MOVOU iv1<>(SB), X3
-
-	MOVOU rol16<>(SB), X10
-	MOVOU rol8<>(SB), X11
-	MOVOU counter<>(SB), X12
-	MOVO  0(SP), X13
-
-loop:
-	MOVO X0, X4
-	MOVO X1, X5
-	MOVO X2, X6
-	MOVO X3, X7
-
-	PADDQ X12, X13
-	PXOR  X13, X7
-
-	PRECOMPUTE(SP, 16, SI, R8, R9, R10, R11, R12, R13, R14, R15)
-	ROUND_SSSE3(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X15, X10, X11)
-	ROUND_SSSE3(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X15, X10, X11)
-	ROUND_SSSE3(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X15, X10, X11)
-	ROUND_SSSE3(X4, X5, X6, X7, 16+192(SP), 32+192(SP), 48+192(SP), 64+192(SP), X15, X10, X11)
-	ROUND_SSSE3(X4, X5, X6, X7, 16+256(SP), 32+256(SP), 48+256(SP), 64+256(SP), X15, X10, X11)
-	ROUND_SSSE3(X4, X5, X6, X7, 16+320(SP), 32+320(SP), 48+320(SP), 64+320(SP), X15, X10, X11)
-	ROUND_SSSE3(X4, X5, X6, X7, 16+384(SP), 32+384(SP), 48+384(SP), 64+384(SP), X15, X10, X11)
-	ROUND_SSSE3(X4, X5, X6, X7, 16+448(SP), 32+448(SP), 48+448(SP), 64+448(SP), X15, X10, X11)
-	ROUND_SSSE3(X4, X5, X6, X7, 16+512(SP), 32+512(SP), 48+512(SP), 64+512(SP), X15, X10, X11)
-	ROUND_SSSE3(X4, X5, X6, X7, 16+576(SP), 32+576(SP), 48+576(SP), 64+576(SP), X15, X10, X11)
-
-	PXOR X4, X0
-	PXOR X5, X1
-	PXOR X6, X0
-	PXOR X7, X1
-
-	LEAQ 64(SI), SI
-	SUBQ $64, DX
-	JNE  loop
-
-	MOVO X13, 0(SP)
-	MOVQ 0(SP), R9
-	MOVQ R9, 0(BX)
-
-	MOVOU X0, 0(AX)
-	MOVOU X1, 16(AX)
-
-	MOVQ BP, SP
+	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), ROUND_SSSE3)
 	RET
 
 // func supportSSSE3() bool
