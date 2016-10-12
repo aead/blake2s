@@ -39,8 +39,26 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 #define ROTL_SSSE3(c, v) \
 	PSHUFB c, v
 
-	// ignore0, ignore1 are ignored
-	// ROUND_SSE2 must have an equal arg count to ROUND_SSSE3
+#define LOAD_MSG_SSE4(m0, m1, m2, m3, src, i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15) \
+	PINSRD $0, i0*4(src), m0;  \
+	PINSRD $1, i1*4(src), m0;  \
+	PINSRD $2, i2*4(src), m0;  \
+	PINSRD $3, i3*4(src), m0;  \
+	PINSRD $0, i4*4(src), m1;  \
+	PINSRD $1, i5*4(src), m1;  \
+	PINSRD $2, i6*4(src), m1;  \
+	PINSRD $3, i7*4(src), m1;  \
+	PINSRD $0, i8*4(src), m2;  \
+	PINSRD $1, i9*4(src), m2;  \
+	PINSRD $2, i10*4(src), m2; \
+	PINSRD $3, i11*4(src), m2; \
+	PINSRD $0, i12*4(src), m3; \
+	PINSRD $1, i13*4(src), m3; \
+	PINSRD $2, i14*4(src), m3; \
+	PINSRD $3, i15*4(src), m3
+
+// ignore0, ignore1 are ignored
+// ROUND_SSE2 must have an equal arg count to ROUND_SSSE3
 #define ROUND_SSE2(v0, v1, v2, v3, m0, m1, m2, m3, t, ignore0, ignore1) \
 	PADDL  m0, v0;        \
 	PADDL  v1, v0;        \
@@ -299,79 +317,133 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 	MOVL R15, 4*4+off+512(dst);  \
 	MOVL R15, 8*4+off+576(dst)
 
-#define HASH_BLOCKS(h, c, flag, blocks_base, blocks_len, ROUND_FUNC) \
-	MOVQ  h, AX;                                                                               \
-	MOVQ  c, BX;                                                                               \
-	MOVL  flag, CX;                                                                            \
-	MOVQ  blocks_base, SI;                                                                     \
-	MOVQ  blocks_len, DX;                                                                      \
-	                                                                                           \
-	MOVQ  SP, BP;                                                                              \
-	ANDQ  $0xFFFFFFFFFFFFFFF0, SP;                                                             \
-	SUBQ  $(16+16+640), SP;                                                                    \
-	                                                                                           \
-	MOVQ  0(BX), R9;                                                                           \
-	MOVQ  R9, 0(SP);                                                                           \
-	XORQ  R9, R9;                                                                              \
-	MOVQ  R9, 8(SP);                                                                           \
-	MOVL  CX, 8(SP);                                                                           \
-	                                                                                           \
-	MOVOU 0(AX), X0;                                                                           \
-	MOVOU 16(AX), X1;                                                                          \
-	MOVOU iv0<>(SB), X2;                                                                       \
-	MOVOU iv1<>(SB), X3;                                                                       \
-	MOVOU counter<>(SB), X12;                                                                  \
-	MOVOU rol16<>(SB), X10;                                                                    \
-	MOVOU rol8<>(SB), X11;                                                                     \
-	MOVO  0(SP), X13;                                                                          \
-	                                                                                           \
-	loop:                                                                                      \
-	MOVO  X0, X4;                                                                              \
-	MOVO  X1, X5;                                                                              \
-	MOVO  X2, X6;                                                                              \
-	MOVO  X3, X7;                                                                              \
-	                                                                                           \
-	PADDQ X12, X13;                                                                            \
-	PXOR  X13, X7;                                                                             \
-	                                                                                           \
+#define BLAKE2s_SSE2() \
+	PRECOMPUTE(SP, 16, SI, R8, R9, R10, R11, R12, R13, R14, R15);                             \
+	ROUND_SSE2(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X8, X13, X14);                 \
+	ROUND_SSE2(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X8, X13, X14);     \
+	ROUND_SSE2(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X8, X13, X14); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+192(SP), 32+192(SP), 48+192(SP), 64+192(SP), X8, X13, X14); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+256(SP), 32+256(SP), 48+256(SP), 64+256(SP), X8, X13, X14); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+320(SP), 32+320(SP), 48+320(SP), 64+320(SP), X8, X13, X14); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+384(SP), 32+384(SP), 48+384(SP), 64+384(SP), X8, X13, X14); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+448(SP), 32+448(SP), 48+448(SP), 64+448(SP), X8, X13, X14); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+512(SP), 32+512(SP), 48+512(SP), 64+512(SP), X8, X13, X14); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+576(SP), 32+576(SP), 48+576(SP), 64+576(SP), X8, X13, X14)
+
+#define BLAKE2s_SSSE3() \
 	PRECOMPUTE(SP, 16, SI, R8, R9, R10, R11, R12, R13, R14, R15);                              \
-	ROUND_FUNC(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X15, X10, X11);                 \
-	ROUND_FUNC(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X15, X10, X11);     \
-	ROUND_FUNC(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X15, X10, X11); \
-	ROUND_FUNC(X4, X5, X6, X7, 16+192(SP), 32+192(SP), 48+192(SP), 64+192(SP), X15, X10, X11); \
-	ROUND_FUNC(X4, X5, X6, X7, 16+256(SP), 32+256(SP), 48+256(SP), 64+256(SP), X15, X10, X11); \
-	ROUND_FUNC(X4, X5, X6, X7, 16+320(SP), 32+320(SP), 48+320(SP), 64+320(SP), X15, X10, X11); \
-	ROUND_FUNC(X4, X5, X6, X7, 16+384(SP), 32+384(SP), 48+384(SP), 64+384(SP), X15, X10, X11); \
-	ROUND_FUNC(X4, X5, X6, X7, 16+448(SP), 32+448(SP), 48+448(SP), 64+448(SP), X15, X10, X11); \
-	ROUND_FUNC(X4, X5, X6, X7, 16+512(SP), 32+512(SP), 48+512(SP), 64+512(SP), X15, X10, X11); \
-	ROUND_FUNC(X4, X5, X6, X7, 16+576(SP), 32+576(SP), 48+576(SP), 64+576(SP), X15, X10, X11); \
-	                                                                                           \
-	PXOR  X4, X0;                                                                              \
-	PXOR  X5, X1;                                                                              \
-	PXOR  X6, X0;                                                                              \
-	PXOR  X7, X1;                                                                              \
-	                                                                                           \
-	LEAQ  64(SI), SI;                                                                          \
-	SUBQ  $64, DX;                                                                             \
-	JNE   loop;                                                                                \
-	                                                                                           \
-	MOVO  X13, 0(SP);                                                                          \
-	MOVQ  0(SP), R9;                                                                           \
-	MOVQ  R9, 0(BX);                                                                           \
-	                                                                                           \
-	MOVOU X0, 0(AX);                                                                           \
-	MOVOU X1, 16(AX);                                                                          \
-	                                                                                           \
-	MOVQ  BP, SP;                                                                              \
+	ROUND_SSSE3(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X8, X13, X14);                 \
+	ROUND_SSSE3(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X8, X13, X14);     \
+	ROUND_SSSE3(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X8, X13, X14); \
+	ROUND_SSSE3(X4, X5, X6, X7, 16+192(SP), 32+192(SP), 48+192(SP), 64+192(SP), X8, X13, X14); \
+	ROUND_SSSE3(X4, X5, X6, X7, 16+256(SP), 32+256(SP), 48+256(SP), 64+256(SP), X8, X13, X14); \
+	ROUND_SSSE3(X4, X5, X6, X7, 16+320(SP), 32+320(SP), 48+320(SP), 64+320(SP), X8, X13, X14); \
+	ROUND_SSSE3(X4, X5, X6, X7, 16+384(SP), 32+384(SP), 48+384(SP), 64+384(SP), X8, X13, X14); \
+	ROUND_SSSE3(X4, X5, X6, X7, 16+448(SP), 32+448(SP), 48+448(SP), 64+448(SP), X8, X13, X14); \
+	ROUND_SSSE3(X4, X5, X6, X7, 16+512(SP), 32+512(SP), 48+512(SP), 64+512(SP), X8, X13, X14); \
+	ROUND_SSSE3(X4, X5, X6, X7, 16+576(SP), 32+576(SP), 48+576(SP), 64+576(SP), X8, X13, X14)
+
+#define BLAKE2s_SSE4() \
+	LOAD_MSG_SSE4(X8, X9, X10, X11, SI, 0, 2, 4, 6, 1, 3, 5, 7, 8, 10, 12, 14, 9, 11, 13, 15); \
+	ROUND_SSSE3(X4, X5, X6, X7, X8, X9, X10, X11, X8, X13, X14);                               \
+	LOAD_MSG_SSE4(X8, X9, X10, X11, SI, 14, 4, 9, 13, 10, 8, 15, 6, 1, 0, 11, 5, 12, 2, 7, 3); \
+	ROUND_SSSE3(X4, X5, X6, X7, X8, X9, X10, X11, X8, X13, X14);                               \
+	LOAD_MSG_SSE4(X8, X9, X10, X11, SI, 11, 12, 5, 15, 8, 0, 2, 13, 10, 3, 7, 9, 14, 6, 1, 4); \
+	ROUND_SSSE3(X4, X5, X6, X7, X8, X9, X10, X11, X8, X13, X14);                               \
+	LOAD_MSG_SSE4(X8, X9, X10, X11, SI, 7, 3, 13, 11, 9, 1, 12, 14, 2, 5, 4, 15, 6, 10, 0, 8); \
+	ROUND_SSSE3(X4, X5, X6, X7, X8, X9, X10, X11, X8, X13, X14);                               \
+	LOAD_MSG_SSE4(X8, X9, X10, X11, SI, 9, 5, 2, 10, 0, 7, 4, 15, 14, 11, 6, 3, 1, 12, 8, 13); \
+	ROUND_SSSE3(X4, X5, X6, X7, X8, X9, X10, X11, X8, X13, X14);                               \
+	LOAD_MSG_SSE4(X8, X9, X10, X11, SI, 2, 6, 0, 8, 12, 10, 11, 3, 4, 7, 15, 1, 13, 5, 14, 9); \
+	ROUND_SSSE3(X4, X5, X6, X7, X8, X9, X10, X11, X8, X13, X14);                               \
+	LOAD_MSG_SSE4(X8, X9, X10, X11, SI, 12, 1, 14, 4, 5, 15, 13, 10, 0, 6, 9, 8, 7, 3, 2, 11); \
+	ROUND_SSSE3(X4, X5, X6, X7, X8, X9, X10, X11, X8, X13, X14);                               \
+	LOAD_MSG_SSE4(X8, X9, X10, X11, SI, 13, 7, 12, 3, 11, 14, 1, 9, 5, 15, 8, 2, 0, 4, 6, 10); \
+	ROUND_SSSE3(X4, X5, X6, X7, X8, X9, X10, X11, X8, X13, X14);                               \
+	LOAD_MSG_SSE4(X8, X9, X10, X11, SI, 6, 14, 11, 0, 15, 9, 3, 8, 12, 13, 1, 10, 2, 7, 4, 5); \
+	ROUND_SSSE3(X4, X5, X6, X7, X8, X9, X10, X11, X8, X13, X14);                               \
+	LOAD_MSG_SSE4(X8, X9, X10, X11, SI, 10, 8, 7, 1, 2, 4, 6, 5, 15, 9, 3, 13, 11, 14, 12, 0); \
+	ROUND_SSSE3(X4, X5, X6, X7, X8, X9, X10, X11, X8, X13, X14)
+
+#define HASH_BLOCKS(h, c, flag, blocks_base, blocks_len, stack_size, BLAKE2s_FUNC) \
+	MOVQ  h, AX;                   \
+	MOVQ  c, BX;                   \
+	MOVL  flag, CX;                \
+	MOVQ  blocks_base, SI;         \
+	MOVQ  blocks_len, DX;          \
+	                               \
+	MOVQ  SP, BP;                  \
+	ANDQ  $0xFFFFFFFFFFFFFFF0, SP; \
+	SUBQ  $(16+16+stack_size), SP; \
+	                               \
+	MOVQ  0(BX), R9;               \
+	MOVQ  R9, 0(SP);               \
+	XORQ  R9, R9;                  \
+	MOVQ  R9, 8(SP);               \
+	MOVL  CX, 8(SP);               \
+	                               \
+	MOVOU 0(AX), X0;               \
+	MOVOU 16(AX), X1;              \
+	MOVOU iv0<>(SB), X2;           \
+	MOVOU iv1<>(SB), X3            \
+	                               \
+	MOVOU counter<>(SB), X12;      \
+	MOVOU rol16<>(SB), X13;        \
+	MOVOU rol8<>(SB), X14;         \
+	MOVO  0(SP), X15;              \
+	                               \
+	loop:                          \
+	MOVO  X0, X4;                  \
+	MOVO  X1, X5;                  \
+	MOVO  X2, X6;                  \
+	MOVO  X3, X7;                  \
+	                               \
+	PADDQ X12, X15;                \
+	PXOR  X15, X7;                 \
+	                               \
+	BLAKE2s_FUNC();                \
+	                               \
+	PXOR  X4, X0;                  \
+	PXOR  X5, X1;                  \
+	PXOR  X6, X0;                  \
+	PXOR  X7, X1;                  \
+	                               \
+	LEAQ  64(SI), SI;              \
+	SUBQ  $64, DX;                 \
+	JNE   loop;                    \
+	                               \
+	MOVO  X15, 0(SP);              \
+	MOVQ  0(SP), R9;               \
+	MOVQ  R9, 0(BX);               \
+	                               \
+	MOVOU X0, 0(AX);               \
+	MOVOU X1, 16(AX);              \
+	                               \
+	MOVQ  BP, SP
 
 // func hashBlocksSSE2(h *[8]uint32, c *[2]uint32, flag uint32, blocks []byte)
 TEXT ·hashBlocksSSE2(SB), 4, $0-48
-	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), ROUND_SSE2)
+	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), 640, BLAKE2s_SSE2)
 	RET
 
 // func hashBlocksSSSE3(h *[8]uint32, c *[2]uint32, flag uint32, blocks []byte)
 TEXT ·hashBlocksSSSE3(SB), 4, $0-48
-	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), ROUND_SSSE3)
+	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), 640, BLAKE2s_SSSE3)
+	RET
+
+// func hashBlocksSSE4(h *[8]uint32, c *[2]uint32, flag uint32, blocks []byte)
+TEXT ·hashBlocksSSE4(SB), 4, $0-48
+	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), 0, BLAKE2s_SSE4)
+	RET
+
+// func supportSSE4() bool
+TEXT ·supportSSE4(SB), 4, $0-1
+	XORL CX, CX
+	MOVL $1, AX
+	CPUID
+	ANDL $0x80000, CX  // CX != 0 if support SSE4
+	SHRL $15, CX
+	MOVB CX, ret+0(FP)
 	RET
 
 // func supportSSSE3() bool
@@ -393,15 +465,4 @@ FALSE:
 	MOVB $0, ret+0(FP)
 
 DONE:
-	RET
-
-// func supportSSE2() bool
-TEXT ·supportSSE2(SB), 4, $0-1
-	XORL DX, DX
-	MOVL $1, AX
-	CPUID
-	XORL AX, AX
-	ANDL $(1<<26), DX  // DX != 0 if support SSE2
-	SHRL $26, DX
-	MOVB DX, ret+0(FP)
 	RET
