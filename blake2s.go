@@ -8,6 +8,7 @@ package blake2s
 
 import (
 	"encoding/binary"
+	"errors"
 	"hash"
 )
 
@@ -23,6 +24,8 @@ const (
 	// Size128 is the hash size of BLAKE2s-128 in bytes.
 	Size128 = 16
 )
+
+var errKeySize = errors.New("invalid key size")
 
 var iv = [8]uint32{
 	0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
@@ -64,32 +67,32 @@ func Sum128(data []byte) [Size128]byte {
 }
 
 // New256 returns a new hash.Hash computing the BLAKE2s-256 checksum.
-// A non-nil key turns the hash into a MAC.
-func New256(key []byte) hash.Hash { return newDigest(Size, key) }
+// A non-nil key turns the hash into a MAC. The key must between 0 and 32 byte.
+func New256(key []byte) (hash.Hash, error) { return newDigest(Size, key) }
 
 // New224 returns a new hash.Hash computing the BLAKE2s-224 checksum.
-// A non-nil key turns the hash into a MAC.
-func New224(key []byte) hash.Hash { return newDigest(Size224, key) }
+// A non-nil key turns the hash into a MAC. The key must between 0 and 32 byte.
+func New224(key []byte) (hash.Hash, error) { return newDigest(Size224, key) }
 
 // New160 returns a new hash.Hash computing the BLAKE2s-160 checksum.
-// A non-nil key turns the hash into a MAC.
-func New160(key []byte) hash.Hash { return newDigest(Size160, key) }
+// A non-nil key turns the hash into a MAC. The key must between 0 and 32 byte.
+func New160(key []byte) (hash.Hash, error) { return newDigest(Size160, key) }
 
 // New128 returns a new hash.Hash computing the BLAKE2s-128 checksum.
-// A non-nil key turns the hash into a MAC.
-func New128(key []byte) hash.Hash { return newDigest(Size128, key) }
+// A non-nil key turns the hash into a MAC. The key must between 0 and 32 byte.
+func New128(key []byte) (hash.Hash, error) { return newDigest(Size128, key) }
 
-func newDigest(hashsize int, key []byte) (d *digest) {
+func newDigest(hashsize int, key []byte) (*digest, error) {
 	if len(key) > Size {
-		panic("blake2s: invalid key size")
+		return nil, errKeySize
 	}
-	d = &digest{
+	d := &digest{
 		size:   hashsize,
 		keyLen: len(key),
 	}
 	copy(d.key[:], key)
 	d.Reset()
-	return
+	return d, nil
 }
 
 func checkSum(sum *[Size]byte, hashsize int, data []byte) {

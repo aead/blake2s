@@ -59,7 +59,10 @@ var vectors = []struct {
 
 func TestVectors(t *testing.T) {
 	for i, v := range vectors {
-		h := New256(v.key)
+		h, err := New256(v.key)
+		if err != nil {
+			t.Fatalf("Test vector %d : %s", i, err)
+		}
 
 		h.Write(v.msg)
 		sum := h.Sum(nil)
@@ -87,13 +90,13 @@ func computeMAC(msg []byte, hashsize int, key []byte) (sum []byte) {
 	default:
 		panic("Unexpected hashsize") // should never happen
 	case Size:
-		h = New256(key)
+		h, _ = New256(key)
 	case Size224:
-		h = New224(key)
+		h, _ = New224(key)
 	case Size160:
-		h = New160(key)
+		h, _ = New160(key)
 	case Size128:
-		h = New128(key)
+		h, _ = New128(key)
 	}
 	h.Write(msg)
 	sum = h.Sum(sum)
@@ -118,6 +121,7 @@ func computeHash(msg []byte, hashsize int) (sum []byte) {
 	return
 }
 
+// Test function from RFC 7693.
 func TestSelf(t *testing.T) {
 	var result = [32]byte{
 		0x6A, 0x41, 0x1F, 0x08, 0xCE, 0x25, 0xAD, 0xCD,
@@ -131,7 +135,7 @@ func TestSelf(t *testing.T) {
 	msg := make([]byte, 1024)
 	key := make([]byte, 32)
 
-	h := New256(nil)
+	h, _ := New256(nil)
 	for _, hashsize := range hashLens {
 		for _, msgLength := range msgLens {
 			generateSequence(msg[:msgLength], uint32(msgLength)) // unkeyed hash
@@ -164,7 +168,7 @@ func benchmarkSum(b *testing.B, size int) {
 
 func benchmarkWrite(b *testing.B, size int) {
 	data := make([]byte, size)
-	h := New256(nil)
+	h, _ := New256(nil)
 	b.SetBytes(int64(size))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
