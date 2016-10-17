@@ -39,27 +39,7 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 #define ROTL_SSSE3(c, v) \
 	PSHUFB c, v
 
-#define LOAD_MSG_SSE4(m0, m1, m2, m3, src, i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15) \
-	PINSRD $0, i0*4(src), m0;  \
-	PINSRD $1, i1*4(src), m0;  \
-	PINSRD $2, i2*4(src), m0;  \
-	PINSRD $3, i3*4(src), m0;  \
-	PINSRD $0, i4*4(src), m1;  \
-	PINSRD $1, i5*4(src), m1;  \
-	PINSRD $2, i6*4(src), m1;  \
-	PINSRD $3, i7*4(src), m1;  \
-	PINSRD $0, i8*4(src), m2;  \
-	PINSRD $1, i9*4(src), m2;  \
-	PINSRD $2, i10*4(src), m2; \
-	PINSRD $3, i11*4(src), m2; \
-	PINSRD $0, i12*4(src), m3; \
-	PINSRD $1, i13*4(src), m3; \
-	PINSRD $2, i14*4(src), m3; \
-	PINSRD $3, i15*4(src), m3
-
-// ignore0, ignore1 are ignored
-// ROUND_SSE2 must have an equal arg count to ROUND_SSSE3
-#define ROUND_SSE2(v0, v1, v2, v3, m0, m1, m2, m3, t, ignore0, ignore1) \
+#define ROUND_SSE2(v0, v1, v2, v3, m0, m1, m2, m3, t) \
 	PADDL  m0, v0;        \
 	PADDL  v1, v0;        \
 	PXOR   v0, v3;        \
@@ -131,7 +111,25 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 	PSHUFL $0x4E, v2, v2; \
 	PSHUFL $0x93, v1, v1
 
-#define PRECOMPUTE(dst, off, src, R8, R9, R10, R11, R12, R13, R14, R15) \
+#define LOAD_MSG_SSE4(m0, m1, m2, m3, src, i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15) \
+	MOVL   i0*4(src), m0;      \
+	PINSRD $1, i1*4(src), m0;  \
+	PINSRD $2, i2*4(src), m0;  \
+	PINSRD $3, i3*4(src), m0;  \
+	MOVL   i4*4(src), m1;      \
+	PINSRD $1, i5*4(src), m1;  \
+	PINSRD $2, i6*4(src), m1;  \
+	PINSRD $3, i7*4(src), m1;  \
+	MOVL   i8*4(src), m2;      \
+	PINSRD $1, i9*4(src), m2;  \
+	PINSRD $2, i10*4(src), m2; \
+	PINSRD $3, i11*4(src), m2; \
+	MOVL   i12*4(src), m3;     \
+	PINSRD $1, i13*4(src), m3; \
+	PINSRD $2, i14*4(src), m3; \
+	PINSRD $3, i15*4(src), m3
+
+#define PRECOMPUTE_MSG(dst, off, src, R8, R9, R10, R11, R12, R13, R14, R15) \
 	MOVQ 0*4(src), R8;           \
 	MOVQ 2*4(src), R9;           \
 	MOVQ 4*4(src), R10;          \
@@ -318,20 +316,20 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 	MOVL R15, 8*4+off+576(dst)
 
 #define BLAKE2s_SSE2() \
-	PRECOMPUTE(SP, 16, SI, R8, R9, R10, R11, R12, R13, R14, R15);                             \
-	ROUND_SSE2(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X8, X13, X14);                 \
-	ROUND_SSE2(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X8, X13, X14);     \
-	ROUND_SSE2(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X8, X13, X14); \
-	ROUND_SSE2(X4, X5, X6, X7, 16+192(SP), 32+192(SP), 48+192(SP), 64+192(SP), X8, X13, X14); \
-	ROUND_SSE2(X4, X5, X6, X7, 16+256(SP), 32+256(SP), 48+256(SP), 64+256(SP), X8, X13, X14); \
-	ROUND_SSE2(X4, X5, X6, X7, 16+320(SP), 32+320(SP), 48+320(SP), 64+320(SP), X8, X13, X14); \
-	ROUND_SSE2(X4, X5, X6, X7, 16+384(SP), 32+384(SP), 48+384(SP), 64+384(SP), X8, X13, X14); \
-	ROUND_SSE2(X4, X5, X6, X7, 16+448(SP), 32+448(SP), 48+448(SP), 64+448(SP), X8, X13, X14); \
-	ROUND_SSE2(X4, X5, X6, X7, 16+512(SP), 32+512(SP), 48+512(SP), 64+512(SP), X8, X13, X14); \
-	ROUND_SSE2(X4, X5, X6, X7, 16+576(SP), 32+576(SP), 48+576(SP), 64+576(SP), X8, X13, X14)
+	PRECOMPUTE_MSG(SP, 16, SI, R8, R9, R10, R11, R12, R13, R14, R15);               \
+	ROUND_SSE2(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X8);                 \
+	ROUND_SSE2(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X8);     \
+	ROUND_SSE2(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X8); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+192(SP), 32+192(SP), 48+192(SP), 64+192(SP), X8); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+256(SP), 32+256(SP), 48+256(SP), 64+256(SP), X8); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+320(SP), 32+320(SP), 48+320(SP), 64+320(SP), X8); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+384(SP), 32+384(SP), 48+384(SP), 64+384(SP), X8); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+448(SP), 32+448(SP), 48+448(SP), 64+448(SP), X8); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+512(SP), 32+512(SP), 48+512(SP), 64+512(SP), X8); \
+	ROUND_SSE2(X4, X5, X6, X7, 16+576(SP), 32+576(SP), 48+576(SP), 64+576(SP), X8)
 
 #define BLAKE2s_SSSE3() \
-	PRECOMPUTE(SP, 16, SI, R8, R9, R10, R11, R12, R13, R14, R15);                              \
+	PRECOMPUTE_MSG(SP, 16, SI, R8, R9, R10, R11, R12, R13, R14, R15);                          \
 	ROUND_SSSE3(X4, X5, X6, X7, 16(SP), 32(SP), 48(SP), 64(SP), X8, X13, X14);                 \
 	ROUND_SSSE3(X4, X5, X6, X7, 16+64(SP), 32+64(SP), 48+64(SP), 64+64(SP), X8, X13, X14);     \
 	ROUND_SSSE3(X4, X5, X6, X7, 16+128(SP), 32+128(SP), 48+128(SP), 64+128(SP), X8, X13, X14); \
