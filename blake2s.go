@@ -2,9 +2,9 @@
 // Use of this source code is governed by a license that can be
 // found in the LICENSE file.
 
-// Package blake2s implemnets the BLAKE2s hash algorithm as
+// Package blake2s implements the BLAKE2s hash algorithm as
 // defined in RFC 7693.
-package blake2s
+package blake2s // import "github.com/aead/blake2s"
 
 import (
 	"encoding/binary"
@@ -13,19 +13,19 @@ import (
 )
 
 const (
-	// BlockSize is the blocksize of BLAKE2s in bytes.
+	// The blocksize of BLAKE2s in bytes.
 	BlockSize = 64
-	// Size is the hash size of BLAKE2s-256 in bytes.
+	// The hash size of BLAKE2s-256 in bytes.
 	Size = 32
-	// Size224 is the hash size of BLAKE2s-224 in bytes.
+	// The hash size of BLAKE2s-224 in bytes.
 	Size224 = 28
-	// Size160 is the hash size of BLAKE2s-160 in bytes.
+	// The hash size of BLAKE2s-160 in bytes.
 	Size160 = 20
-	// Size128 is the hash size of BLAKE2s-128 in bytes.
+	// The hash size of BLAKE2s-128 in bytes.
 	Size128 = 16
 )
 
-var errKeySize = errors.New("invalid key size")
+var errKeySize = errors.New("blake2s: invalid key size")
 
 var iv = [8]uint32{
 	0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
@@ -66,28 +66,28 @@ func Sum128(data []byte) [Size128]byte {
 	return sum128
 }
 
-// New256 returns a new hash.Hash computing the BLAKE2s-256 checksum.
-// A non-nil key turns the hash into a MAC. The key must between 0 and 32 byte.
+// New256 returns a new hash.Hash computing the BLAKE2s-256 checksum. A non-nil
+// key turns the hash into a MAC. The key must between zero and 32 bytes long.
 func New256(key []byte) (hash.Hash, error) { return newDigest(Size, key) }
 
-// New224 returns a new hash.Hash computing the BLAKE2s-224 checksum.
-// A non-nil key turns the hash into a MAC. The key must between 0 and 32 byte.
+// New224 returns a new hash.Hash computing the BLAKE2s-224 checksum. A non-nil
+// key turns the hash into a MAC. The key must between zero and 32 bytes long.
 func New224(key []byte) (hash.Hash, error) { return newDigest(Size224, key) }
 
-// New160 returns a new hash.Hash computing the BLAKE2s-160 checksum.
-// A non-nil key turns the hash into a MAC. The key must between 0 and 32 byte.
+// New160 returns a new hash.Hash computing the BLAKE2s-160 checksum. A non-nil
+// key turns the hash into a MAC. The key must between zero and 32 bytes long.
 func New160(key []byte) (hash.Hash, error) { return newDigest(Size160, key) }
 
-// New128 returns a new hash.Hash computing the BLAKE2s-128 checksum.
-// A non-nil key turns the hash into a MAC. The key must between 0 and 32 byte.
+// New128 returns a new hash.Hash computing the BLAKE2s-128 checksum. A non-nil
+// key turns the hash into a MAC. The key must between zero and 32 bytes long.
 func New128(key []byte) (hash.Hash, error) { return newDigest(Size128, key) }
 
-func newDigest(hashsize int, key []byte) (*digest, error) {
+func newDigest(hashSize int, key []byte) (*digest, error) {
 	if len(key) > Size {
 		return nil, errKeySize
 	}
 	d := &digest{
-		size:   hashsize,
+		size:   hashSize,
 		keyLen: len(key),
 	}
 	copy(d.key[:], key)
@@ -95,16 +95,14 @@ func newDigest(hashsize int, key []byte) (*digest, error) {
 	return d, nil
 }
 
-func checkSum(sum *[Size]byte, hashsize int, data []byte) {
+func checkSum(sum *[Size]byte, hashSize int, data []byte) {
 	var (
-		h     [8]uint32
-		c     [2]uint32
-		block [BlockSize]byte
-		off   int
+		h [8]uint32
+		c [2]uint32
 	)
 
 	h = iv
-	h[0] ^= uint32(hashsize) | (1 << 16) | (1 << 24)
+	h[0] ^= uint32(hashSize) | (1 << 16) | (1 << 24)
 
 	if length := len(data); length > BlockSize {
 		n := length &^ (BlockSize - 1)
@@ -114,27 +112,29 @@ func checkSum(sum *[Size]byte, hashsize int, data []byte) {
 		hashBlocks(&h, &c, 0, data[:n])
 		data = data[n:]
 	}
-	off += copy(block[:], data)
 
-	dif := uint32(BlockSize - off)
-	if c[0] < dif {
+	var block [BlockSize]byte
+	offset := copy(block[:], data)
+	remaining := uint32(BlockSize - offset)
+
+	if c[0] < remaining {
 		c[1]--
 	}
-	c[0] -= dif
+	c[0] -= remaining
 
 	hashBlocks(&h, &c, 0xFFFFFFFF, block[:])
 
-	for i, v := range h[:(hashsize+3)/4] {
+	for i, v := range h {
 		binary.LittleEndian.PutUint32(sum[4*i:], v)
 	}
 }
 
 type digest struct {
-	h     [8]uint32
-	c     [2]uint32
-	size  int
-	block [BlockSize]byte
-	off   int
+	h      [8]uint32
+	c      [2]uint32
+	size   int
+	block  [BlockSize]byte
+	offset int
 
 	key    [BlockSize]byte
 	keyLen int
@@ -147,26 +147,26 @@ func (d *digest) Size() int { return d.size }
 func (d *digest) Reset() {
 	d.h = iv
 	d.h[0] ^= uint32(d.size) | (uint32(d.keyLen) << 8) | (1 << 16) | (1 << 24)
-	d.off, d.c[0], d.c[1] = 0, 0, 0
+	d.offset, d.c[0], d.c[1] = 0, 0, 0
 	if d.keyLen > 0 {
 		d.block = d.key
-		d.off = BlockSize
+		d.offset = BlockSize
 	}
 }
 
 func (d *digest) Write(p []byte) (n int, err error) {
 	n = len(p)
 
-	if d.off > 0 {
-		dif := BlockSize - d.off
-		if n <= dif {
-			d.off += copy(d.block[d.off:], p)
+	if d.offset > 0 {
+		remaining := BlockSize - d.offset
+		if n <= remaining {
+			d.offset += copy(d.block[d.offset:], p)
 			return
 		}
-		copy(d.block[d.off:], p[:dif])
+		copy(d.block[d.offset:], p[:remaining])
 		hashBlocks(&d.h, &d.c, 0, d.block[:])
-		d.off = 0
-		p = p[dif:]
+		d.offset = 0
+		p = p[remaining:]
 	}
 
 	if length := len(p); length > BlockSize {
@@ -178,10 +178,7 @@ func (d *digest) Write(p []byte) (n int, err error) {
 		p = p[nn:]
 	}
 
-	if len(p) > 0 {
-		d.off += copy(d.block[:], p)
-	}
-
+	d.offset += copy(d.block[:], p)
 	return
 }
 
@@ -190,12 +187,12 @@ func (d *digest) Sum(b []byte) []byte {
 	h := d.h
 	c := d.c
 
-	copy(block[:], d.block[:d.off])
-	dif := uint32(BlockSize - d.off)
-	if c[0] < dif {
+	copy(block[:], d.block[:d.offset])
+	remaining := uint32(BlockSize - d.offset)
+	if c[0] < remaining {
 		c[1]--
 	}
-	c[0] -= dif
+	c[0] -= remaining
 
 	hashBlocks(&h, &c, 0xFFFFFFFF, block[:])
 

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a license that can be
 // found in the LICENSE file.
 
-// +build amd64, !gccgo, !appengine
+// +build amd64,!gccgo,!appengine
 
 #include "textflag.h"
 
@@ -110,6 +110,7 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 	PSHUFL $0x39, v3, v3; \
 	PSHUFL $0x4E, v2, v2; \
 	PSHUFL $0x93, v1, v1
+
 
 #define LOAD_MSG_SSE4(m0, m1, m2, m3, src, i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15) \
 	MOVL   i0*4(src), m0;      \
@@ -363,7 +364,7 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 	LOAD_MSG_SSE4(X8, X9, X10, X11, SI, 10, 8, 7, 1, 2, 4, 6, 5, 15, 9, 3, 13, 11, 14, 12, 0); \
 	ROUND_SSSE3(X4, X5, X6, X7, X8, X9, X10, X11, X8, X13, X14)
 
-#define HASH_BLOCKS(h, c, flag, blocks_base, blocks_len, stack_size, BLAKE2s_FUNC) \
+#define HASH_BLOCKS(h, c, flag, blocks_base, blocks_len, BLAKE2s_FUNC) \
 	MOVQ  h, AX;                   \
 	MOVQ  c, BX;                   \
 	MOVL  flag, CX;                \
@@ -371,8 +372,10 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 	MOVQ  blocks_len, DX;          \
 	                               \
 	MOVQ  SP, BP;                  \
-	ANDQ  $0xFFFFFFFFFFFFFFF0, SP; \
-	SUBQ  $(16+16+stack_size), SP; \
+	MOVQ  SP, R9;                  \
+	ADDQ  $15, R9;                 \
+	ANDQ  $~15, R9;                \
+	MOVQ  R9, SP;                  \
 	                               \
 	MOVQ  0(BX), R9;               \
 	MOVQ  R9, 0(SP);               \
@@ -420,47 +423,41 @@ GLOBL counter<>(SB), (NOPTR+RODATA), $16
 	MOVQ  BP, SP
 
 // func hashBlocksSSE2(h *[8]uint32, c *[2]uint32, flag uint32, blocks []byte)
-TEXT ·hashBlocksSSE2(SB), 4, $0-48
-	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), 640, BLAKE2s_SSE2)
+TEXT ·hashBlocksSSE2(SB), 0, $672-48 // frame = 656 + 16 byte alignment
+	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), BLAKE2s_SSE2)
 	RET
 
 // func hashBlocksSSSE3(h *[8]uint32, c *[2]uint32, flag uint32, blocks []byte)
-TEXT ·hashBlocksSSSE3(SB), 4, $0-48
-	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), 640, BLAKE2s_SSSE3)
+TEXT ·hashBlocksSSSE3(SB), 0, $672-48 // frame = 656 + 16 byte alignment
+	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), BLAKE2s_SSSE3)
 	RET
 
 // func hashBlocksSSE4(h *[8]uint32, c *[2]uint32, flag uint32, blocks []byte)
-TEXT ·hashBlocksSSE4(SB), 4, $0-48
-	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), 0, BLAKE2s_SSE4)
+TEXT ·hashBlocksSSE4(SB), 0, $32-48 // frame = 16 + 16 byte alignment
+	HASH_BLOCKS(h+0(FP), c+8(FP), flag+16(FP), blocks_base+24(FP), blocks_len+32(FP), BLAKE2s_SSE4)
 	RET
 
 // func supportSSE4() bool
 TEXT ·supportSSE4(SB), 4, $0-1
-	XORL CX, CX
 	MOVL $1, AX
 	CPUID
-	ANDL $0x80000, CX  // CX != 0 if support SSE4
-	SHRL $15, CX
+	SHRL $19, CX       // Bit 19 indicates SSE4.1.
+	ANDL $1, CX
 	MOVB CX, ret+0(FP)
 	RET
 
 // func supportSSSE3() bool
 TEXT ·supportSSSE3(SB), 4, $0-1
-	XORL CX, CX
 	MOVL $1, AX
 	CPUID
 	MOVL CX, BX
-	ANDL $0x1, BX      // BX != 0 if support SSE3
-	CMPL BX, $0
-	JE   FALSE
-	ANDL $0x200, CX    // CX != 0 if support SSSE3
-	CMPL CX, $0
-	JE   FALSE
+	ANDL $0x1, BX      // Bit zero indicates SSE3 support.
+	JZ   FALSE
+	ANDL $0x200, CX    // Bit nine indicates SSSE3 support.
+	JZ   FALSE
 	MOVB $1, ret+0(FP)
-	JMP  DONE
+	RET
 
 FALSE:
 	MOVB $0, ret+0(FP)
-
-DONE:
 	RET
